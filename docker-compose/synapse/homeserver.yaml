@@ -1,0 +1,47 @@
+server_name: "example.com"
+pid_file: /data/homeserver.pid
+public_baseurl: "https://matrix.example.com/"
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+    resources:
+      - names: [client, federation, media, keys]
+
+log_config: /data/log.config
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: change-me-synapse-db
+    database: synapse
+    host: postgres
+    cp_min: 5
+    cp_max: 10
+
+redis:
+  enabled: true
+  host: redis
+  port: 6379
+
+registration_shared_secret: "change-me-registration-secret"
+macaroon_secret_key: "change-me-macaroon-secret"
+form_secret: "change-me-form-secret"
+
+report_stats: false
+signing_key_path: "/data/example.com.signing.key"
+media_store_path: /data/media_store
+
+trusted_key_servers:
+  - server_name: "matrix.org"
+
+# Minimal MAS OIDC compatibility; update issuer/client values after generating MAS config.
+experimental_features:
+  msc3861:
+    enabled: true
+    issuer: "https://account.example.com/"
+    client_id: "0000000000000000000SYNAPSE"
+    client_auth_method: "client_secret_post"
+    client_secret: "change-me-mas-matrix-secret"

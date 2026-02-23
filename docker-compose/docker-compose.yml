@@ -1,0 +1,115 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  synapse:
+    image: matrixdotorg/synapse:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+      SYNAPSE_SERVER_NAME: ${SERVER_NAME}
+      SYNAPSE_REPORT_STATS: "no"
+    volumes:
+      - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./synapse/log.config:/data/log.config:ro
+      - synapse_data:/data
+
+  mas:
+    image: ghcr.io/element-hq/matrix-authentication-service:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      synapse:
+        condition: service_started
+    command: ["server", "-c", "/config/config.yaml"]
+    volumes:
+      - ./mas/config.yaml:/config/config.yaml:ro
+
+  element-web:
+    image: vectorim/element-web:latest
+    restart: unless-stopped
+    volumes:
+      - ./element-web/config.json:/app/config.json:ro
+
+  element-admin:
+    image: awesometechnologies/synapse-admin:latest
+    restart: unless-stopped
+    environment:
+      REACT_APP_SERVER: https://${SYNAPSE_HOST}
+      REACT_APP_SERVER_NAME: ${SERVER_NAME}
+
+  hookshot:
+    image: halfshot/matrix-hookshot:latest
+    restart: unless-stopped
+    profiles: ["hookshot"]
+    depends_on:
+      synapse:
+        condition: service_started
+    command: ["node", "dist/index.js", "-c", "/data/config.yaml", "-r", "/data/registration.yaml"]
+    volumes:
+      - ./hookshot/config.yaml:/data/config.yaml:ro
+      - ./hookshot/registration.yaml:/data/registration.yaml:ro
+
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    profiles: ["matrix-rtc"]
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - synapse
+      - mas
+      - element-web
+      - element-admin
+    ports:
+      - "80:80"
+      - "443:443"
+      - "30881:30881"
+      - "30882:30882/udp"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./well-known:/usr/share/nginx/html/.well-known:ro
+      - ./certs:/etc/nginx/certs:ro
+    environment:
+      SERVER_NAME: ${SERVER_NAME}
+      SYNAPSE_HOST: ${SYNAPSE_HOST}
+      MAS_HOST: ${MAS_HOST}
+      ELEMENT_WEB_HOST: ${ELEMENT_WEB_HOST}
+      ELEMENT_ADMIN_HOST: ${ELEMENT_ADMIN_HOST}
+      HOOKSHOT_HOST: ${HOOKSHOT_HOST}
+      MRTC_HOST: ${MRTC_HOST}
+
+volumes:
+  postgres_data:
+  redis_data:
+  synapse_data:
