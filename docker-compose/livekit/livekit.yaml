@@ -1,0 +1,9 @@
+port: 7880
+rtc:
+  tcp_port: 30881
+  udp_port: 30882
+  use_external_ip: true
+redis:
+  address: redis:6379
+keys:
+  devkey: secret

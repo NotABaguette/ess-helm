@@ -74,6 +74,8 @@ A full comparison between the editions can be found [here](https://element.io/pr
 - [Quick setup](#installation)
   - [Preparing the environment](#preparing-the-environment)
     - [DNS](#dns)
+    - [Docker host setup with k3d](#docker-host-setup-with-k3d)
+    - [Docker Compose on a single host (no Kubernetes)](#docker-compose-on-a-single-host-no-kubernetes)
     - [K3S - Kubernetes single node setup](#kubernetes-single-node-setup-with-k3s)
     - [Certificates](#certificates)
         - [Let's Encrypt](#lets-encrypt)
@@ -153,7 +155,7 @@ You first need to choose what your server name is going to be. The server name m
 Setting up a basic environment involves only **6 steps**:
 
 1. [Setting up DNS entries](#dns)
-2. [Setting up K3s](#kubernetes-single-node-setup-with-k3s) (or use another Kubernetes distribution)
+2. [Setting up Kubernetes](#docker-host-setup-with-k3d) (k3d on a single Docker host, K3s, or another Kubernetes distribution)
 3. [Setting up TLS/certificates](#certificates)
 4. [Installing the stack](#installation)
 5. [Creating an initial user](#creating-an-initial-user)
@@ -183,6 +185,69 @@ For this simple setup you need to open the following ports:
  - UDP 30882: This port will be used for the Muxed WebRTC connections of Matrix RTC Backend.
 
 These ports will be exposed by default on a running ESS Community deployment. You can change that as needed, for instance if you have another service occupying 80/443. See the [Using an existing reverse proxy](#using-an-existing-reverse-proxy) section below.
+
+### Docker host setup with k3d
+
+If you only have one Ubuntu Docker host and do not have a Kubernetes cluster yet, use [k3d](https://k3d.io/) to run a single-node K3s cluster inside Docker. This keeps ESS Community fully feature-complete because the same Helm chart and Kubernetes manifests are used.
+
+1. Install dependencies:
+
+```sh
+# Docker Engine (if not already installed)
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -m 0755 kubectl /usr/local/bin/kubectl
+
+# k3d
+curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+```
+
+2. Run the provided helper script to create and configure a single-host cluster:
+
+```sh
+./scripts/setup_single_host_k3d.sh
+```
+
+This configures port exposure for ESS Community defaults (80, 443, 30881/TCP, 30882/UDP), prepares kubeconfig, and creates namespace `ess`.
+
+3. Continue with the regular sections below:
+
+- [Certificates](#certificates)
+- [Installation](#installation)
+- [Creating an initial user](#creating-an-initial-user)
+- [Verifying the setup](#verifying-the-setup)
+
+### Docker Compose on a single host (no Kubernetes)
+
+If you do not want Kubernetes, this repository now includes a Docker Compose deployment in [`docker-compose/`](./docker-compose/).
+
+Use this path when you have one Ubuntu Docker host and want to run the full ESS component set directly with Docker Compose:
+
+```sh
+cd docker-compose
+cp .env.example .env
+# edit .env and config files as described in docker-compose/README.md
+docker compose up -d
+```
+
+Optional services can be enabled with profiles:
+
+```sh
+docker compose --profile hookshot --profile matrix-rtc up -d
+```
+
+For complete configuration details, see [`docker-compose/README.md`](./docker-compose/README.md).
 
 ### Kubernetes single node setup with K3s
 
@@ -562,6 +627,13 @@ Alternatively you can delete the whole `ess` namespace which will remove everyth
 kubectl delete namespace ess
 ```
 
+If you used the Docker Compose deployment from `docker-compose/`, uninstall with:
+
+```sh
+cd docker-compose
+docker compose down -v
+```
+
 If you want to also uninstall other components installed in this guide, you can do so using the following commands:
 
 ```
@@ -571,8 +643,11 @@ helm uninstall cert-manager -n cert-manager
 # Uninstall helm
 rm -rf /usr/local/bin/helm $HOME/.cache/helm $HOME/.config/helm $HOME/.local/share/helm
 
-# Uninstall k3s
+# Uninstall k3s (if you used K3s directly)
 /usr/local/bin/k3s-uninstall.sh
+
+# OR delete the single-host k3d cluster (if you used k3d)
+k3d cluster delete ess-community
 
 # (Optional) Remove config
 rm -rf ~/ess-config-values ~/.kube
