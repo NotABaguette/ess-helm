@@ -1,0 +1,29 @@
+http:
+  listeners:
+    - name: web
+      resources: [discovery, human, oauth, compat, graphql]
+      binds:
+        - host: 0.0.0.0
+          port: 8080
+
+database:
+  uri: postgres://mas:change-me-mas-db@postgres/mas
+
+matrix:
+  homeserver: synapse
+  endpoint: http://synapse:8008/
+  secret: change-me-mas-matrix-secret
+  server_name: example.com
+
+secrets:
+  encryption: change-me-mas-encryption-secret
+
+clients:
+  - client_id: 0000000000000000000SYNAPSE
+    client_auth_method: client_secret_post
+    client_secret: change-me-mas-matrix-secret
+    grant_types: [authorization_code, refresh_token]
+    redirect_uris: ["https://matrix.example.com/_synapse/client/oidc/callback"]
+
+passwords:
+  enabled: true

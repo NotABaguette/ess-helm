@@ -1,0 +1,13 @@
+id: hookshot
+url: http://hookshot:9993
+as_token: changeme
+hs_token: changeme
+sender_localpart: hookshot
+rate_limited: false
+namespaces:
+  users:
+    - exclusive: true
+      regex: "@hookshot_.*"
+  aliases:
+    - exclusive: true
+      regex: "#hookshot_.*"

@@ -1,0 +1,19 @@
+bridge:
+  domain: example.com
+  url: http://hookshot:9993
+listeners:
+  - port: 9993
+    bindAddress: 0.0.0.0
+passFile: /data/passkey
+service:
+  id: hookshot
+  as_token: changeme
+  hs_token: changeme
+  bot_localpart: hookshot
+  sender_localpart: hookshot
+  names:
+    users: "@hookshot_.*"
+    aliases: "#hookshot_.*"
+homeserver:
+  url: http://synapse:8008
+  domain: example.com
